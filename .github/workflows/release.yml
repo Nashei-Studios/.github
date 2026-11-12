@@ -1,0 +1,31 @@
+name: release-train
+
+# Inherited release train (Nashei-Studios/.github, docs/adr/0001): develop -> main by PR with a merge
+# commit, SemVer tag, CHANGELOG.md and GitHub Release.
+#   - on demand: gh workflow run release.yml
+#   - weekly floor: Monday, only when develop holds a feat/fix/perf/tune commit since the last tag
+# A repo with code adds a `gate` job between plan and publish that calls its own ci.yml.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 13 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    uses: ./.github/workflows/release-plan.yml
+  publish:
+    needs: plan
+    if: needs.plan.outputs.release == 'true'
+    permissions:
+      contents: write
+      pull-requests: write
+    uses: ./.github/workflows/release-publish.yml
+    with:
+      version: ${{ needs.plan.outputs.version }}

@@ -1,0 +1,21 @@
+name: audit-push
+
+# Inherited (Nashei-Studios/.github): keeps the previous tip of main and develop under refs/backup/
+# and opens an issue when one of them moves by a forced push or without a pull request.
+on:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: audit-push-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    permissions:
+      contents: write
+      issues: write
+    uses: Nashei-Studios/.github/.github/workflows/audit-push.yml@main

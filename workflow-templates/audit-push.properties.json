@@ -1,0 +1,6 @@
+{
+  "name": "Nashei Audit push",
+  "description": "Backup and alert for pushes to main and develop",
+  "iconName": "octicon-git-merge",
+  "categories": ["Automation"]
+}

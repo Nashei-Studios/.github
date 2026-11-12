@@ -1,0 +1,6 @@
+{
+  "name": "Nashei Release train",
+  "description": "develop to main with tag, changelog and GitHub Release",
+  "iconName": "octicon-git-merge",
+  "categories": ["Automation"]
+}

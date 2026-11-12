@@ -1,0 +1,51 @@
+name: audit-push
+
+# Reusable detective control for main and develop. A private repo on the Free plan keeps its rulesets
+# but GitHub does not enforce them, so every push to a permanent branch is checked after the fact:
+#   - the previous tip is kept under refs/backup/ so a rewrite loses nothing
+#   - a forced push, or a push that did not come from a pull request, opens an issue with the SHA to restore
+# No checkout; a few seconds per push.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: write
+      issues: write
+    steps:
+      - name: Keep the previous tip and flag unexpected pushes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+          FORCED: ${{ github.event.forced }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          zero=0000000000000000000000000000000000000000
+          if [ "$BEFORE" != "$zero" ]; then
+            ref="refs/backup/${BRANCH}/$(date -u +%Y%m%dT%H%M%SZ)"
+            gh api -X POST "repos/$REPO/git/refs" -f ref="$ref" -f sha="$BEFORE" --silent || true
+          fi
+          prs=$(gh api "repos/$REPO/commits/$AFTER/pulls" --jq 'length' 2>/dev/null || echo 0)
+          reason=""
+          if [ "$FORCED" = "true" ]; then reason="forced push (history rewritten)"; fi
+          if [ -z "$reason" ] && [ "$prs" = "0" ] && [ "$ACTOR" != "github-actions[bot]" ]; then
+            reason="direct push without a pull request"
+          fi
+          if [ -z "$reason" ]; then echo "ok: $BRANCH moved through a PR"; exit 0; fi
+          gh issue create --repo "$REPO" \
+            --title "audit-push: $reason on $BRANCH" \
+            --body "Branch \`$BRANCH\` moved from \`$BEFORE\` to \`$AFTER\` by $ACTOR: $reason.
+
+          The previous tip is kept under \`refs/backup/$BRANCH/\`. To restore it: \`git push origin $BEFORE:refs/heads/$BRANCH --force-with-lease\` after the team agrees.
+
+          Rule: main and develop only move through pull requests."

@@ -1,0 +1,6 @@
+{
+  "name": "Nashei PR gate",
+  "description": "Conventional title, linked issue and automerge into develop",
+  "iconName": "octicon-git-merge",
+  "categories": ["Automation"]
+}

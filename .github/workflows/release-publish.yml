@@ -1,0 +1,80 @@
+name: release-publish
+
+# Reusable second half of the release train (docs/adr/0001). Nothing is pushed straight to a
+# permanent branch, so the same flow works with "require a pull request" on main and on develop:
+#   1. release/vX.Y.Z = develop + main merged back + CHANGELOG.md
+#   2. PR release/vX.Y.Z -> develop, merge commit (keeps main's history reachable from develop)
+#   3. PR develop -> main, merge commit (never squash between permanent branches)
+#   4. annotated tag vX.Y.Z on main and the GitHub Release with the notes
+# Publishing a Roblox place is not part of this: that stays in Studio and with Victor.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: "Version to release, like v0.3.0 (output of release-plan)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  GIT_CLIFF_VERSION: "2.14.2"
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: develop
+          fetch-depth: 0
+      - name: Shared changelog config when the repo has none
+        if: hashFiles('cliff.toml') == ''
+        run: curl -fsSL -o "$RUNNER_TEMP/cliff.toml" https://raw.githubusercontent.com/Nashei-Studios/.github/main/sync/cliff.toml
+      - name: Release branch with main merged back
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "release/$VERSION"
+          git fetch origin main
+          git merge --no-edit -m "chore(release): sync main into develop" origin/main
+      - name: Install git-cliff (pinned, checksum verified)
+        run: |
+          base="https://github.com/orhun/git-cliff/releases/download/v${GIT_CLIFF_VERSION}"
+          asset="git-cliff-${GIT_CLIFF_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL -O "$base/$asset" -O "$base/$asset.sha512"
+          sha512sum -c "$asset.sha512"
+          tar -xzf "$asset" --strip-components=1 "git-cliff-${GIT_CLIFF_VERSION}/git-cliff"
+          mkdir -p "$HOME/.local/bin" && mv git-cliff "$HOME/.local/bin/"
+          rm -f "$asset" "$asset.sha512"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Changelog and release notes
+        run: |
+          config=cliff.toml; [ -f "$config" ] || config="$RUNNER_TEMP/cliff.toml"
+          git-cliff --config "$config" --tag "$VERSION" --output CHANGELOG.md
+          git-cliff --config "$config" --unreleased --tag "$VERSION" --strip header --output "$RUNNER_TEMP/notes.md"
+          git add CHANGELOG.md
+          git commit -m "chore(release): $VERSION"
+          git push origin "release/$VERSION"
+      - name: Release branch into develop (merge commit)
+        run: |
+          url=$(gh pr create --base develop --head "release/$VERSION" --title "chore(release): $VERSION changelog" --body "Changelog for $VERSION and main merged back. Opened by the release workflow.")
+          gh pr merge "$url" --merge --delete-branch --subject "chore(release): $VERSION changelog" --body ""
+      - name: Promote develop to main (merge commit)
+        run: |
+          url=$(gh pr create --base main --head develop --title "chore(release): $VERSION" --body-file "$RUNNER_TEMP/notes.md")
+          gh pr merge "$url" --merge --subject "chore(release): $VERSION" --body ""
+      - name: Tag main and publish the GitHub Release
+        run: |
+          git fetch origin main
+          git tag -a "$VERSION" -m "$VERSION" origin/main
+          git push origin "$VERSION"
+          gh release create "$VERSION" --verify-tag --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md"

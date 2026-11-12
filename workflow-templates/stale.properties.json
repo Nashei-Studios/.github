@@ -1,0 +1,6 @@
+{
+  "name": "Nashei Stale PRs",
+  "description": "Weekly cleanup of abandoned pull requests",
+  "iconName": "octicon-git-merge",
+  "categories": ["Automation"]
+}

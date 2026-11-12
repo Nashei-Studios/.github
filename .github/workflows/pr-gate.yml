@@ -1,0 +1,61 @@
+name: pr-gate
+
+# Reusable PR gate, inherited by every repo of the organization (docs/adr/0001).
+# One job on purpose: every job is billed as at least one minute in a private repo.
+#   1. the PR title is a Conventional Commit (the squash commit uses it)
+#   2. the PR links an issue (Closes/Refs #N), unless it is a release or a dependency update
+#   3. a non-draft PR into develop squash-merges itself, closes its issues and deletes its branch
+# Step 3 is off until the caller repo has the variable AUTOMERGE_ENABLED=true; the label `hold` blocks it.
+# The caller runs its own checks first and lists them in `needs:` of the job that calls this workflow.
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    if: github.event_name == 'pull_request' && !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+      PR_TITLE: ${{ github.event.pull_request.title }}
+      BASE: ${{ github.base_ref }}
+      HEAD: ${{ github.head_ref }}
+      ACTOR: ${{ github.actor }}
+      AUTOMERGE: ${{ vars.AUTOMERGE_ENABLED }}
+    steps:
+      - name: Conventional Commit title
+        run: |
+          printf '%s' "$PR_TITLE" | grep -Eq '^(feat|fix|docs|style|refactor|perf|test|chore|tune)(\([a-z0-9/_.-]+\))?!?: .+' \
+            || { echo "::error::PR title must follow Conventional Commits: $PR_TITLE"; exit 1; }
+      - name: Linked issue
+        run: |
+          case "$HEAD" in develop | release/* | dependabot/*) echo "release or dependency PR: no issue needed"; exit 0 ;; esac
+          body=$(gh pr view "$PR" --repo "$REPO" --json body --jq .body)
+          closing=$(gh pr view "$PR" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length')
+          if [ "$closing" -gt 0 ] || printf '%s' "$body" | grep -Eiq '(closes|fixes|resolves|refs)[: ]+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+'; then
+            exit 0
+          fi
+          echo "::error::The PR body must link an issue: 'Closes #N' or 'Refs #N'."
+          exit 1
+      - name: Squash-merge into develop unless held
+        if: github.base_ref == 'develop' && vars.AUTOMERGE_ENABLED == 'true' && github.actor != 'dependabot[bot]'
+        run: |
+          if gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx hold; then
+            echo "PR held by label, not merging"; exit 0
+          fi
+          issues=$(gh pr view "$PR" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences[].number')
+          # A merge made with GITHUB_TOKEN triggers neither the auto-delete of the head branch nor the
+          # closing keywords (develop is not the default branch): both are done here.
+          gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
+          for issue in $issues; do
+            gh issue close "$issue" --repo "$REPO" --comment "Closed by #$PR (automerge)."
+          done
