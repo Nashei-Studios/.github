@@ -52,9 +52,17 @@ jobs:
           if gh pr view "$PR" --repo "$REPO" --json labels --jq '.labels[].name' | grep -qx hold; then
             echo "PR held by label, not merging"; exit 0
           fi
-          issues=$(gh pr view "$PR" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences[].number')
-          # A merge made with GITHUB_TOKEN triggers neither the auto-delete of the head branch nor the
-          # closing keywords (develop is not the default branch): both are done here.
+          # GitHub only resolves closing keywords for PRs into the default branch, so
+          # closingIssuesReferences is empty here: the issues are read from the body. A reference
+          # to another repository is left alone (the token cannot close it).
+          issues=$(gh pr view "$PR" --repo "$REPO" --json body --jq .body \
+            | grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)[: ]+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+' \
+            | while read -r ref; do
+                target=$(printf '%s' "$ref" | grep -Eo '[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' || true)
+                if [ -z "$target" ] || [ "$target" = "$REPO" ]; then printf '%s\n' "${ref##*#}"; fi
+              done | sort -un)
+          # A merge made with GITHUB_TOKEN does not trigger the auto-delete of the head branch
+          # either: the branch is deleted here.
           gh pr merge "$PR" --repo "$REPO" --squash --delete-branch
           for issue in $issues; do
             gh issue close "$issue" --repo "$REPO" --comment "Closed by #$PR (automerge)."
