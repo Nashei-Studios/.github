@@ -9,6 +9,11 @@ name: pr-gate
 # The caller runs its own checks first and lists them in `needs:` of the job that calls this workflow.
 on:
   workflow_call:
+    inputs:
+      issue_exempt_prefix:
+        description: Head branches starting with this prefix need no linked issue (unattended automation, e.g. "jarvis/").
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -31,6 +36,7 @@ jobs:
       HEAD: ${{ github.head_ref }}
       ACTOR: ${{ github.actor }}
       AUTOMERGE: ${{ vars.AUTOMERGE_ENABLED }}
+      EXEMPT: ${{ inputs.issue_exempt_prefix }}
     steps:
       - name: Conventional Commit title
         run: |
@@ -39,6 +45,9 @@ jobs:
       - name: Linked issue
         run: |
           case "$HEAD" in develop | release/* | dependabot/*) echo "release or dependency PR: no issue needed"; exit 0 ;; esac
+          if [ -n "$EXEMPT" ]; then
+            case "$HEAD" in "$EXEMPT"*) echo "automation branch ($EXEMPT): no issue needed"; exit 0 ;; esac
+          fi
           body=$(gh pr view "$PR" --repo "$REPO" --json body --jq .body)
           closing=$(gh pr view "$PR" --repo "$REPO" --json closingIssuesReferences --jq '.closingIssuesReferences | length')
           if [ "$closing" -gt 0 ] || printf '%s' "$body" | grep -Eiq '(closes|fixes|resolves|refs)[: ]+([A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)?#[0-9]+'; then
