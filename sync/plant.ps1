@@ -41,9 +41,11 @@ if ($LASTEXITCODE -ne 0) {
   }
 }
 
-# 2. Merge settings.
+# 2. Merge settings. A private repo on the Free plan has no enforced ruleset, so GitHub's own
+#    auto-delete would remove develop when someone merges develop -> main by hand: it stays off there
+#    and the gate deletes the work branches itself.
 $want = [ordered]@{
-  default_branch = 'main'; delete_branch_on_merge = $true; allow_auto_merge = $true; allow_update_branch = $true
+  default_branch = 'main'; delete_branch_on_merge = (-not $private); allow_auto_merge = $true; allow_update_branch = $true
   allow_squash_merge = $true; allow_merge_commit = $true; allow_rebase_merge = $false
   squash_merge_commit_title = 'PR_TITLE'; squash_merge_commit_message = 'BLANK'
   merge_commit_title = 'PR_TITLE'; merge_commit_message = 'PR_BODY'

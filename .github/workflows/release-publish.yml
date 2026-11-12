@@ -64,14 +64,30 @@ jobs:
           git add CHANGELOG.md
           git commit -m "chore(release): $VERSION"
           git push origin "release/$VERSION"
+      - name: Merge helper
+        # Right after a PR is created GitHub may still be computing its mergeability and answers with
+        # a transient error: retry a few times before giving up.
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          cat > "$HOME/.local/bin/merge_pr" <<'SH'
+          #!/usr/bin/env bash
+          url=$1; shift
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge "$url" --merge --body "" "$@"; then exit 0; fi
+            echo "merge attempt $attempt failed, retrying"; sleep $((attempt * 5))
+          done
+          exit 1
+          SH
+          chmod +x "$HOME/.local/bin/merge_pr"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - name: Release branch into develop (merge commit)
         run: |
           url=$(gh pr create --base develop --head "release/$VERSION" --title "chore(release): $VERSION changelog" --body "Changelog for $VERSION and main merged back. Opened by the release workflow.")
-          gh pr merge "$url" --merge --delete-branch --subject "chore(release): $VERSION changelog" --body ""
+          merge_pr "$url" --delete-branch --subject "chore(release): $VERSION changelog"
       - name: Promote develop to main (merge commit)
         run: |
           url=$(gh pr create --base main --head develop --title "chore(release): $VERSION" --body-file "$RUNNER_TEMP/notes.md")
-          gh pr merge "$url" --merge --subject "chore(release): $VERSION" --body ""
+          merge_pr "$url" --subject "chore(release): $VERSION"
       - name: Tag main and publish the GitHub Release
         run: |
           git fetch origin main
