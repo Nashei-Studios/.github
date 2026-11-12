@@ -1,0 +1,41 @@
+name: ci
+
+# This repo feeds every other repo: its workflows are linted before they reach develop, and main only
+# moves by release, so a broken workflow never reaches the callers (docs/adr/0001).
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.head_ref }}-${{ github.event.pull_request.draft }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  ACTIONLINT_VERSION: "1.7.12"
+
+jobs:
+  lint:
+    if: ${{ !github.event.pull_request.draft }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint (pinned, checksum verified)
+        run: |
+          base="https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}"
+          asset="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -O "$base/$asset" -O "$base/actionlint_${ACTIONLINT_VERSION}_checksums.txt"
+          grep " $asset\$" "actionlint_${ACTIONLINT_VERSION}_checksums.txt" | sha256sum -c -
+          tar -xzf "$asset" actionlint
+          ./actionlint .github/workflows/*.yml workflow-templates/*.yml
+  pr:
+    needs: lint
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: ./.github/workflows/pr-gate.yml

@@ -1,0 +1,21 @@
+name: Acuerdo por cerrar
+description: Algo que el equipo tiene que decidir y dejar escrito
+title: "Acuerdo: "
+labels: ["acuerdo"]
+body:
+  - type: textarea
+    id: pregunta
+    attributes:
+      label: Qué hay que decidir
+      description: Una pregunta cerrada, con las opciones.
+    validations:
+      required: true
+  - type: textarea
+    id: recomendacion
+    attributes:
+      label: Recomendación y qué se pierde
+  - type: input
+    id: donde
+    attributes:
+      label: Dónde queda escrito al cerrarse
+      placeholder: docs/acuerdos.md, sección 1

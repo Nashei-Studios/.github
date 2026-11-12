@@ -1,0 +1,33 @@
+name: Spec
+description: Una página que define una idea ya interrogada, antes de partirla en historias
+title: "Spec: "
+labels: ["tipo:spec"]
+body:
+  - type: input
+    id: discusion
+    attributes:
+      label: Discusión donde se interrogó la idea
+    validations:
+      required: true
+  - type: textarea
+    id: problema
+    attributes:
+      label: Problema y para quién
+    validations:
+      required: true
+  - type: textarea
+    id: entra
+    attributes:
+      label: Qué entra
+    validations:
+      required: true
+  - type: textarea
+    id: fuera
+    attributes:
+      label: Qué queda fuera
+  - type: textarea
+    id: medida
+    attributes:
+      label: Cómo se mide y qué dato la haría abandonar
+    validations:
+      required: true

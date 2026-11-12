@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Idea o duda
+    url: https://docs.github.com/discussions
+    about: Las ideas y las preguntas van en la pestaña Discussions de este repo. Las tareas van en Issues.
