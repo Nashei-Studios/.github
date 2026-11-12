@@ -1,0 +1,30 @@
+name: Historia de usuario
+description: Algo que el jugador podrá hacer, con criterios comprobables
+title: "Historia: "
+labels: ["tipo:historia", "needs-triage"]
+body:
+  - type: textarea
+    id: historia
+    attributes:
+      label: Historia
+      value: "Como jugador que ..., quiero ..., para ..."
+    validations:
+      required: true
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Criterios de aceptación
+      description: Uno por línea. Dado, Cuando, Entonces.
+      value: "- [ ] Dado ..., cuando ..., entonces ..."
+    validations:
+      required: true
+  - type: input
+    id: spec
+    attributes:
+      label: Spec al que pertenece
+      placeholder: "#12"
+  - type: dropdown
+    id: tamano
+    attributes:
+      label: Tamaño
+      options: ["S (horas)", "M (un día o dos)", "L (hay que partirla)"]

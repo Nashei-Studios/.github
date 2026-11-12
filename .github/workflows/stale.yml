@@ -1,0 +1,45 @@
+name: stale
+
+# Reusable: closes abandoned PRs with a comment. Drafts are never touched; the label `keep` exempts a PR.
+# Only `gh`, no third-party action.
+on:
+  workflow_call:
+    inputs:
+      conflict-days:
+        type: number
+        default: 14
+      idle-days:
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  close:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      CONFLICT_DAYS: ${{ inputs.conflict-days }}
+      IDLE_DAYS: ${{ inputs.idle-days }}
+    steps:
+      - name: Close conflicting or idle PRs
+        run: |
+          now=$(date +%s)
+          conflict_cut=$((now - CONFLICT_DAYS * 86400))
+          idle_cut=$((now - IDLE_DAYS * 86400))
+          gh pr list --repo "$REPO" --state open --limit 100 --json number,isDraft,updatedAt,mergeable,labels \
+            | jq -r --argjson c "$conflict_cut" --argjson i "$idle_cut" '
+                .[] | select(.isDraft | not) | select(any(.labels[]; .name == "keep") | not)
+                | (.updatedAt | fromdateiso8601) as $t
+                | select(($t < $i) or (.mergeable == "CONFLICTING" and $t < $c))
+                | "\(.number) \(if .mergeable == "CONFLICTING" then "has conflicts" else "is idle" end)"' \
+            | while read -r number reason; do
+                gh pr close "$number" --repo "$REPO" --delete-branch \
+                  --comment "Closing automatically: this PR $reason and has had no activity for a long time. Reopen it (or restore the branch from this page) when the work continues; label it keep to exempt it."
+              done

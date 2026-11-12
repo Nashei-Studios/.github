@@ -1,0 +1,35 @@
+name: Tarea
+description: Algo concreto que alguien del equipo hace (arte, mapa, código, texto)
+labels: [needs-triage]
+body:
+  - type: textarea
+    id: que
+    attributes:
+      label: Qué hay que hacer
+      description: Una o dos frases. Qué debe existir cuando termine.
+    validations:
+      required: true
+  - type: textarea
+    id: listo
+    attributes:
+      label: Cómo sabemos que está listo
+      description: Una línea por criterio, que se pueda comprobar mirando el juego o la PR.
+    validations:
+      required: true
+  - type: dropdown
+    id: quien
+    attributes:
+      label: Quién la hace
+      options:
+        - Sin dueño todavía
+        - Victor
+        - Nande
+        - Leon
+        - Un agente
+    validations:
+      required: true
+  - type: input
+    id: fecha
+    attributes:
+      label: Para cuándo (opcional)
+      placeholder: "2026-11-18"

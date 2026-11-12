@@ -1,0 +1,23 @@
+name: Pedido de acceso
+description: Sumar a una persona o darle acceso a algo
+title: "Acceso: "
+labels: ["acceso"]
+body:
+  - type: input
+    id: quien
+    attributes:
+      label: Usuario de GitHub
+    validations:
+      required: true
+  - type: checkboxes
+    id: que
+    attributes:
+      label: Qué necesita
+      options:
+        - label: Organización de GitHub
+        - label: Team Create del juego
+        - label: Workspace de Notion
+        - label: Carpeta de Drive
+  - type: markdown
+    attributes:
+      value: "Pasos completos en docs/sumar-persona.md. No pegues contraseñas ni tokens aquí."

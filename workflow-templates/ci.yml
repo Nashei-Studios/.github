@@ -1,0 +1,24 @@
+name: ci
+
+# Inherited PR gate (Nashei-Studios/.github, docs/adr/0001): Conventional Commit title, linked issue,
+# and squash-merge into develop when the repo variable AUTOMERGE_ENABLED is "true".
+# A repo with code adds its own jobs here and lists them in `needs:` of the `pr` job.
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+    branches: [develop, main]
+
+concurrency:
+  group: ci-${{ github.head_ref }}-${{ github.event.pull_request.draft }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  pr:
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    uses: Nashei-Studios/.github/.github/workflows/pr-gate.yml@main
