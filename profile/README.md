@@ -10,5 +10,5 @@ Estudio de juegos de Roblox. Hacemos juegos chicos, los sacamos rápido, medimos
 
 ## Enlaces
 
-- Comunidad de Roblox: por publicar
+- Comunidad de Roblox: [Nashei Studios](https://www.roblox.com/communities/405835365)
 - Juegos: por publicar
