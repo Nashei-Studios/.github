@@ -91,7 +91,15 @@ jobs:
           curl -fsSL -o "$RUNNER_TEMP/$asset" -o "$RUNNER_TEMP/$asset.sha256" "$base/$asset" "$base/$asset.sha256"
           (cd "$RUNNER_TEMP" && sha256sum -c "$asset.sha256")
           tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" --strip-components=1 lychee-x86_64-unknown-linux-gnu/lychee
-          mapfile -t files < "$RUNNER_TEMP/changed.txt"
+          mapfile -t listed < "$RUNNER_TEMP/changed.txt"
+          # The file list comes from the API, which already reflects the PR's newest commit, while this run
+          # checked out the commit that triggered it. A file pushed after that is not here yet: skip it, the
+          # run of the newer commit checks it. Without this, lychee fails with "not found as file".
+          files=()
+          for f in "${listed[@]}"; do
+            if [ -f "$f" ]; then files+=("$f"); else echo "skipping $f: not in this checkout (a newer commit adds it)"; fi
+          done
+          if [ ${#files[@]} -eq 0 ]; then echo "none of the changed files is in this checkout: nothing to check"; exit 0; fi
           # Links into this organization's own repositories are skipped: the repositories are private,
           # so an anonymous checker answers 404 for every one of them. The repo name and its paths are
           # verified by the humans who review the PR. The owner comes from the runner, never from a list.
