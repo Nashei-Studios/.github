@@ -4,8 +4,9 @@ name: pr-gate
 # One job on purpose: every job is billed as at least one minute in a private repo.
 #   1. the PR title is a Conventional Commit (the squash commit uses it)
 #   2. the PR links an issue (Closes/Refs #N), unless it is a release or a dependency update
-#   3. a non-draft PR into develop squash-merges itself, closes its issues and deletes its branch
-# Step 3 is off until the caller repo has the variable AUTOMERGE_ENABLED=true; the label `hold` blocks it.
+#   3. links in the Markdown and source files the PR changes answer (lychee, docs/adr/0002)
+#   4. a non-draft PR into develop squash-merges itself, closes its issues and deletes its branch
+# Step 4 is off until the caller repo has the variable AUTOMERGE_ENABLED=true; the label `hold` blocks it.
 # The caller runs its own checks first and lists them in `needs:` of the job that calls this workflow.
 on:
   workflow_call:
@@ -14,6 +15,10 @@ on:
         description: Head branches starting with this prefix need no linked issue (unattended automation, e.g. "jarvis/").
         type: string
         default: ""
+      link_check:
+        description: Check the links in the files the PR changes. Set false to skip it in a repo that is not ready.
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -22,7 +27,7 @@ jobs:
   gate:
     if: github.event_name == 'pull_request' && !github.event.pull_request.draft
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 5
     permissions:
       contents: write
       pull-requests: write
@@ -37,6 +42,7 @@ jobs:
       ACTOR: ${{ github.actor }}
       AUTOMERGE: ${{ vars.AUTOMERGE_ENABLED }}
       EXEMPT: ${{ inputs.issue_exempt_prefix }}
+      LYCHEE_VERSION: "0.24.2"
     steps:
       - name: Conventional Commit title
         run: |
@@ -55,6 +61,38 @@ jobs:
           fi
           echo "::error::The PR body must link an issue: 'Closes #N' or 'Refs #N'."
           exit 1
+      - name: Checkout for the link check
+        if: inputs.link_check
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Restore link cache
+        if: inputs.link_check
+        uses: actions/cache@v6
+        with:
+          path: .lycheecache
+          key: lychee-${{ github.repository }}-${{ github.run_id }}
+          restore-keys: lychee-${{ github.repository }}-
+      - name: Links in the changed files
+        if: inputs.link_check
+        run: |
+          gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[] | select(.status != "removed") | .filename'             | grep -E '\.(md|mdx|html|txt|luau|lua|ps1)$' > "$RUNNER_TEMP/changed.txt" || true
+          if [ ! -s "$RUNNER_TEMP/changed.txt" ]; then echo "no Markdown or source files changed: nothing to check"; exit 0; fi
+          # Settings: the caller's .lychee.toml, else this repo's own sync/lychee.toml, else the organization default.
+          if   [ -f .lychee.toml ];      then config=.lychee.toml
+          elif [ -f sync/lychee.toml ];  then config=sync/lychee.toml
+          else
+            config="$RUNNER_TEMP/lychee.toml"
+            curl -fsSL -o "$config" https://raw.githubusercontent.com/Nashei-Studios/.github/main/sync/lychee.toml
+          fi
+          base="https://github.com/lycheeverse/lychee/releases/download/lychee-v${LYCHEE_VERSION}"
+          asset="lychee-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$asset" -o "$RUNNER_TEMP/$asset.sha256" "$base/$asset" "$base/$asset.sha256"
+          (cd "$RUNNER_TEMP" && sha256sum -c "$asset.sha256")
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" --strip-components=1 lychee-x86_64-unknown-linux-gnu/lychee
+          mapfile -t files < "$RUNNER_TEMP/changed.txt"
+          echo "checking ${#files[@]} file(s) with $config"
+          "$RUNNER_TEMP/lychee" --config "$config" --no-progress -- "${files[@]}"             || { echo "::error::A link in the changed files is broken. Fix it, or add a justified exclusion to the lychee config."; exit 1; }
       - name: Squash-merge into develop unless held
         if: github.base_ref == 'develop' && vars.AUTOMERGE_ENABLED == 'true' && github.actor != 'dependabot[bot]'
         run: |
