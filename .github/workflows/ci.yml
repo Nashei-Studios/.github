@@ -32,6 +32,8 @@ jobs:
           grep " $asset\$" "actionlint_${ACTIONLINT_VERSION}_checksums.txt" | sha256sum -c -
           tar -xzf "$asset" actionlint
           ./actionlint .github/workflows/*.yml workflow-templates/*.yml
+      - name: AI-mark detector of the PR gate
+        run: bash scripts/test-ai-marks.sh
   pr:
     needs: lint
     permissions:
