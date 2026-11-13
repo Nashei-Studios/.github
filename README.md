@@ -12,7 +12,7 @@ Qué no es: no guarda código de juegos ni documentación del estudio (eso vive 
 ## El flujo, en corto
 
 1. Todo trabajo tiene un issue. La rama sale de `develop`.
-2. La PR va a `develop`, con título en Conventional Commits y `Closes #N` en el cuerpo.
+2. La PR va a `develop`, con título en Conventional Commits y `Closes #N` en el cuerpo. Ni el título, ni la descripción ni los commits pueden traer marcas de IA (trailer de coautoría de un asistente, enlace de sesión, pie de generación o el emoji de robot): el gate falla y dice qué línea sacar.
 3. Si el gate queda en verde, la PR se mergea sola con squash, se borra la rama y se cierra el issue.
 4. `main` solo cambia por release: `gh workflow run release.yml`, o solo los lunes si hay cambios.
    El release crea el tag `vX.Y.Z`, el `CHANGELOG.md` y el GitHub Release.
