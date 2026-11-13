@@ -58,4 +58,4 @@ mismo patrón que ya revisa la org.
 ## Relacionado
 
 - La comprobación local, antes de que Victor actúe sobre un enlace, es un hook de Stop de la configuración
-  de Victor (ADR 0028 de `~/.claude`).
+  de Victor (ADR 0027 de `~/.claude`).
