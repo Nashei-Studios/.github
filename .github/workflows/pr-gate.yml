@@ -92,7 +92,13 @@ jobs:
           (cd "$RUNNER_TEMP" && sha256sum -c "$asset.sha256")
           tar -xzf "$RUNNER_TEMP/$asset" -C "$RUNNER_TEMP" --strip-components=1 lychee-x86_64-unknown-linux-gnu/lychee
           mapfile -t files < "$RUNNER_TEMP/changed.txt"
-          echo "checking ${#files[@]} file(s) with $config"
+          # Links into this organization's own repositories are skipped: the repositories are private,
+          # so an anonymous checker answers 404 for every one of them. The repo name and its paths are
+          # verified by the humans who review the PR. The owner comes from the runner, never from a list.
+          # It goes in .lycheeignore (additive) and not in --exclude, which would replace the config's list.
+          own_repos="^https?://github\.com/${GITHUB_REPOSITORY_OWNER}(/|$)"
+          printf '%s\n' "$own_repos" >> .lycheeignore
+          echo "checking ${#files[@]} file(s) with $config (skipping $own_repos)"
           "$RUNNER_TEMP/lychee" --config "$config" --no-progress -- "${files[@]}"             || { echo "::error::A link in the changed files is broken. Fix it, or add a justified exclusion to the lychee config."; exit 1; }
       - name: No AI marks
         run: |
