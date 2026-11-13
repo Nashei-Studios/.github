@@ -1,0 +1,35 @@
+# Link check settings shared by every Nashei-Studios repo (docs/adr/0002).
+# The pr-gate workflow reads this file; a repo overrides it with its own .lychee.toml at its root.
+# Everything that changes per site (anti-bot hosts, placeholders) lives here, never in a script.
+
+# Network behaviour: short, so a dead host does not hold the gate.
+timeout = 15
+max_retries = 2
+retry_wait_time = 2
+max_concurrency = 16
+user_agent = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+
+# Only web links. Relative paths are the job of the repo's own tests.
+scheme = ["https", "http"]
+exclude_loopback = true
+exclude_private = true
+exclude_link_local = true
+
+# A 404 or 410 fails the gate. 403 and 429 are anti-bot or rate-limit answers, not proof of a dead link;
+# 999 is LinkedIn's refusal code.
+accept = ["100..=103", "200..=299", "403", "429", "999"]
+
+# Remember good answers for a day so a re-run on the same PR costs almost nothing.
+cache = true
+max_cache_age = "1d"
+
+# Skipped on purpose. One regex per line, with the reason next to it.
+exclude = [
+  '\{', '\}',                                  # template placeholders: https://x/{id}
+  '<', '>',                                    # <placeholder> written in docs
+  '%7B', '%7D',                                # an encoded placeholder
+  '\$',                                        # shell or Luau interpolation
+  '^https?://([a-z0-9-]+\.)?(example|test|invalid)(\.[a-z]+)?(/|$)',  # reserved example hosts
+  '^https?://(www\.)?(linkedin|instagram|tiktok|facebook)\.com',      # block automated clients on any path
+  '^https?://(www\.)?(x|twitter)\.com',        # same, and logged-out pages answer 200 even for dead tweets
+]
