@@ -39,6 +39,7 @@ jobs:
       PR_TITLE: ${{ github.event.pull_request.title }}
       BASE: ${{ github.base_ref }}
       HEAD: ${{ github.head_ref }}
+      PR_BODY: ${{ github.event.pull_request.body }}
       ACTOR: ${{ github.actor }}
       AUTOMERGE: ${{ vars.AUTOMERGE_ENABLED }}
       EXEMPT: ${{ inputs.issue_exempt_prefix }}
@@ -93,6 +94,39 @@ jobs:
           mapfile -t files < "$RUNNER_TEMP/changed.txt"
           echo "checking ${#files[@]} file(s) with $config"
           "$RUNNER_TEMP/lychee" --config "$config" --no-progress -- "${files[@]}"             || { echo "::error::A link in the changed files is broken. Fix it, or add a justified exclusion to the lychee config."; exit 1; }
+      - name: No AI marks
+        run: |
+          # ai-marks:begin
+          # Reads text on stdin, prints "line-number:line" for each AI mark and fails if it finds any.
+          # A Co-Authored-By of a person passes; one naming an assistant does not.
+          ai_marks() {
+            ! LC_ALL=C grep -nEi \
+              -e '^[[:space:]]*co-authored-by:.*(claude|anthropic|openai|chatgpt|codex|copilot|gemini|cursor|aider|devin)' \
+              -e 'claude-session:|claude\.ai/code/session_' \
+              -e 'generated (with|by)[^a-z]{0,6}(claude|anthropic|codex|openai|chatgpt|copilot|gemini|cursor)' \
+              -e '🤖'
+          }
+          # ai-marks:end
+          bad=0
+          check() {
+            if ! hits=$(printf '%s\n' "$2" | ai_marks); then
+              printf '%s\n' "$hits" | while IFS= read -r line; do
+                echo "::error::AI mark in $1 (line ${line%%:*}): remove this line: ${line#*:}"
+              done
+              bad=1
+            fi
+          }
+          check "the PR title" "$PR_TITLE"
+          check "the PR description" "$PR_BODY"
+          case "$HEAD" in
+            develop | release/*) echo "release PR: its commits passed their own gate"; [ "$bad" = 0 ]; exit ;;
+          esac
+          gh api "repos/$REPO/pulls/$PR/commits" --paginate \
+            --jq '.[] | "\(.sha[0:7])\t\(.commit.message | gsub("\n"; "\u001f"))"' > commits.tsv
+          while IFS=$'\t' read -r sha msg; do
+            check "commit $sha" "$(printf '%s' "$msg" | tr '\037' '\n')"
+          done < commits.tsv
+          [ "$bad" = 0 ]
       - name: Squash-merge into develop unless held
         if: github.base_ref == 'develop' && vars.AUTOMERGE_ENABLED == 'true' && github.actor != 'dependabot[bot]'
         run: |
